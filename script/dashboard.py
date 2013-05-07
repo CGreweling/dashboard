@@ -4,11 +4,16 @@ import os,sys, glob
 import datetime
 import subprocess
 import ConfigParser
-import pycurl, urllib
+import pycurl, urllib, urllib2, cookielib
 import hashlib, json
 import codecs
 import argparse
 
+#TODO
+# 1. Calendar
+# 2. NCast
+# 3. edit agents.json enrich 
+# 4. Agents devices
 
 class MatterhornClient:
 	def __init__(self, url, username, passwd):
@@ -16,53 +21,48 @@ class MatterhornClient:
 		self.username = username
 		self.passwd=passwd
 		self.contents = ''
-		
-	def body_callback(self, buf):
-		self.contents = self.contents + buf		
 
-	def getAgentInfo(self, agentName):
-		self.contents = ""
-		fullurl = self.server_url + "/capture-admin/agents/"+agentName+".json" 
-		curl = pycurl.Curl()
-		curl.setopt(pycurl.URL, fullurl)
-		curl.setopt(pycurl.USERPWD, self.username+':'+self.passwd)
-		curl.setopt(pycurl.HTTPHEADER, ["X-Requested-Auth: Digest"])
-		curl.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_DIGEST)
-		curl.setopt(curl.WRITEFUNCTION, self.body_callback)
-		curl.perform()
-		retcode = curl.getinfo(pycurl.HTTP_CODE)
-		curl.close()
-		return (retcode, self.contents)
+	def getAgentOnline(self, agentName):
+		
+		cj = cookielib.CookieJar()
+		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+		login_data = urllib.urlencode({'j_username' : self.username, 'j_password' : self.passwd})
+		resp = opener.open(self.server_url + '/j_spring_security_check', login_data)
+		
+		resp = opener.open(self.server_url + '/capture-admin/agents/' + agentName + '.xml')
+		
+		return (resp.code == 200)
+
 
 	def getAgentsInfo(self):
-		self.contents = ""
-		fullurl = self.server_url + "/capture-admin/agents.json" 
-		curl = pycurl.Curl()
-		curl.setopt(pycurl.URL, fullurl)
-		curl.setopt(pycurl.USERPWD, self.username+':'+self.passwd)
-		curl.setopt(pycurl.HTTPHEADER, ["X-Requested-Auth: Digest"])
-		curl.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_DIGEST)
-		curl.setopt(curl.WRITEFUNCTION, self.body_callback)
-		curl.perform()
-		retcode = curl.getinfo(pycurl.HTTP_CODE)
-		curl.close()
-		return (retcode, self.contents)
 		
+		cj = cookielib.CookieJar()
+		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+		login_data = urllib.urlencode({'j_username' : self.username, 'j_password' : self.passwd})
+		resp = opener.open(self.server_url + '/j_spring_security_check', login_data)
+
+		resp = opener.open(self.server_url + '/capture-admin/agents.json')
+		
+		return (resp.code, resp.read())
+		
+	# TODO test 
+	# von heute 7 Tage
+	# xml fuer alle holen http://mh-admin.virtuos.uos.de:8080/capture-admin/recordings
+	# parsen und filtern
 	def getCalendar(self, date_from, date_to):
-		self.contents = ""		
+		
+		cj = cookielib.CookieJar()
+		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+		login_data = urllib.urlencode({'j_username' : self.username, 'j_password' : self.passwd})
+		resp = opener.open(self.server_url + '/j_spring_security_check', login_data)
+		
 		d_from = "%04d-%02d-%02dT00:00:00Z" % (date_from.year, date_from.month, date_from.day)
 		d_to = "%04d-%02d-%02dT00:00:00Z" % (date_to.year, date_to.month, date_to.day)
-		fullurl = self.server_url + "/recordings/recordings.json?sort=CREATED&startsfrom="+d_from+"&endsto="+d_to
-		curl = pycurl.Curl()
-		curl.setopt(pycurl.URL, fullurl)
-		curl.setopt(pycurl.USERPWD, self.username+':'+self.passwd)
-		curl.setopt(pycurl.HTTPHEADER, ["X-Requested-Auth: Digest"])
-		curl.setopt(pycurl.HTTPAUTH, pycurl.HTTPAUTH_DIGEST)
-		curl.setopt(curl.WRITEFUNCTION, self.body_callback)
-		curl.perform()
-		retcode = curl.getinfo(pycurl.HTTP_CODE)
-		curl.close()
-		return (retcode, self.contents)
+		
+
+		resp = opener.open(self.server_url + "/recordings/recordings.json?sort=CREATED&startsfrom="+d_from+"&endsto="+d_to)	
+		
+		return (resp.code, resp.read())
 		
 
 
@@ -84,26 +84,49 @@ def write_file(filename, str):
 	fout.write(str)
 	fout.close()
 
-def isComputerOnline(ip):
-	response = subprocess.call("ping -c 1 -w 1 " + ip , shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	return (response == 0)
+#TODO
+def getAgentDevices(ip, agent_username, agent_passwd):
+	
+	#cj = cookielib.CookieJar()
+	#opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+	#login_data = urllib.urlencode({'j_username' : agent_username, 'j_password' : agent_passwd})
+	#resp = opener.open(ip + '/j_spring_security_check', login_data)
+	
+	#resp = opener.open(ip + "/confidence/devices")
+	
+	#print resp.read()
+	
+	return ("vga", "dozent")
 
-def generateAgentScreenShoot(ip, passwdFile, snapshotFolder, agentSection):
-	outimg = snapshotFolder + agentSection + ".jpg"
-	outthumb = snapshotFolder + agentSection + "-thumb.jpg"
+#TODO 
+def generateAgentScreenShoot(ip, agent_username, agent_passwd, snapshotFolder, agentSection, devices):
 	
-	vnc_cmd = "timeout 10 vncsnapshot -passwd " + passwdFile + " " + ip + " " + outimg
-	vncErr = subprocess.call(vnc_cmd , shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	if (vncErr == 0):
-		subprocess.call("convert " + outimg + " -resize 500 " + outthumb, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-	
-	return (vncErr == 0)
+	for device in devices:
+		
+		img = snapshotFolder + agentSection + device
+		outimg = img + ".jpg"
+		outthumb = img + "-thumb.jpg"
+
+		cj = cookielib.CookieJar()
+		opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(cj))
+		login_data = urllib.urlencode({'j_username' : agent_username, 'j_password' : agent_passwd})
+		resp = opener.open(ip + '/j_spring_security_check', login_data)
+
+		resp = opener.open(ip + "/confidence/" + device)
+
+		f = open(outimg, 'w')
+		f.write(resp.read())
+		f.close()
+		resp.close() 
+
+	return 1
 
 def getMatterHornInfo(MHAgentsInfo, agentName):
 	for a in MHAgentsInfo:
-		if (a["name"] == agentName):			
+		if (a["name"] == agentName):		
 			return a	
 	return {}
+
 
 def getMatterHornAgentsInfo(config):
 	MH_server = config.get("dashboard-config", "MHServer")
@@ -118,6 +141,7 @@ def getMatterHornAgentsInfo(config):
 		jj = json.loads(info[1])
 		return jj["agents"]["agent"]
 
+# TODO
 def getMatterHornCalendarInfo(config):
 	MH_server = config.get("dashboard-config", "MHServer")
 	MH_user = config.get("dashboard-config", "MHuser")
@@ -157,47 +181,63 @@ def getJSONitems(config, agentSection):
 	return json_items[:-2]
 
 
+#TODO
 def generateAgentJSON(config, MHAgentsInfo, MHCalendarInfo, agentSection):
 	MHinfo = getMatterHornInfo(MHAgentsInfo, agentSection)
 	agent_url = getConfigOption(config, agentSection, "url")
+	
 	if (agent_url == None):
 		try:
 			agent_url = MHinfo["url"]
 		except:
 			pass
 		
-	snapshotFolder = getConfigOption(config, "dashboard-config", "snapShotFolder")
-	agent_vncpasswdFile = getConfigOption(config, agentSection, "vncpasswdFile")
-	if (agent_vncpasswdFile == None):
-		agent_vncpasswdFile = getConfigOption(config, "dashboard-config", "vncpasswdFile")
+	snapshotFolder = getConfigOption(config, "dashboard-config", "snapShotFolder")	
+
+	#agent_username = getConfigOption(config, agentSection, "username")
+	#agent_passwd   = getConfigOption(config, agentSection, "passwd")
+
+	agent_state = MHinfo["state"]
+	MH_server = config.get("dashboard-config", "MHServer")
+	MH_user = config.get("dashboard-config", "MHuser")
+	MH_passwd = config.get("dashboard-config", "MHPassword")
 	
-	agent_online = isComputerOnline(agent_url)
-	vncOk = False
+	MH = MatterhornClient(MH_server, MH_user, MH_passwd)
+	agent_online = MH.getAgentOnline(agentSection)
+
 	filenameshot = ""
-	filenamethumb = ""	
-	if (agent_online):		
-		vncOk = generateAgentScreenShoot(agent_url, agent_vncpasswdFile, snapshotFolder, agentSection)
-		if (vncOk == True):
-			filenameshot = agentSection+".jpg"
-			filenamethumb= agentSection+"-thumb.jpg"
+	
+	images = {}
+
+	if (agent_online):	
+		if (agent_state == "capturing"):
+			devices = getAgentDevices(agent_url, MH_user, MH_passwd) 
+			generateAgentScreenShoot(agent_url, MH_user, MH_passwd, snapshotFolder, agentSection, devices)
+			
+			for device in devices:
+				images[device]= agentSection+device+".jpg"
+			
 		MHinfo = getMatterHornInfo(MHAgentsInfo, agentSection)	
 	else:
 		MHinfo = {}
 				
 	json_items = getJSONitems(config, agentSection)	
 	
+
+#TODO calendar
 	calendar = []
-	if MHCalendarInfo.has_key(agentSection):
-		calendar = MHCalendarInfo[agentSection]
+	#if MHCalendarInfo.has_key(agentSection):
+	#	calendar = MHCalendarInfo[agentSection]
 	
 	
 	line_str = "{ "
 	line_str += "\"agentname\": \"" + agentSection +"\",\t"
 	line_str += "\"agenturl\": \"" + agent_url +"\",\t"
 	line_str += "\"online\": \"" + str(agent_online) +"\",\t"
-	line_str += "\"VNC\": \"" + str(vncOk) +"\",\t"
-	line_str += "\"image\": \"" + filenameshot + "\",\t"
-	line_str += "\"thumb\": \"" + filenamethumb + "\",\t"	
+#TODO
+	line_str += "\"images\": " + json.dumps(images) + ",\t"
+
+#TODO enrich?
 	line_str += "\"enrich\": {" + json_items + "},\t" 
 	line_str += "\"mhinfo\": " + json.dumps(MHinfo) + ", \t"
 	line_str += "\"calendar\": " + json.dumps(calendar) + " \t"
@@ -228,12 +268,11 @@ def getAgentsNames(config, MHAgentsInfo):
 
 def generateAllAgentsJSON(config, datetime_str):
 	MHAgentsInfo = getMatterHornAgentsInfo(config)
-	MHCalendarInfo = getMatterHornCalendarInfo(config)
-	
+	MHCalendarInfo = 0#getMatterHornCalendarInfo(config)
 	agentNames = getAgentsNames(config, MHAgentsInfo)	
 	
 	json_agents=""
-	for a in agentNames:		
+	for a in agentNames:
 		a_out = generateAgentJSON(config, MHAgentsInfo, MHCalendarInfo, a)
 		json_agents += "\t"+a_out +",\n"
 	json_agents = json_agents[:-2]
@@ -254,7 +293,7 @@ def readAgentsConfig(config, configAgentsFolder):
 				fileconf = os.path.join(r,files)				
 				config.read(fileconf)
 
-def getConfigOption(config, section,option):
+def getConfigOption(config, section, option):
 	try:
 		ret = config.get(section, option)	
 	except ConfigParser.NoOptionError:
@@ -291,7 +330,6 @@ def process(conf_file):
 	
 	
 def main():
-	# argument parser
 	parser = argparse.ArgumentParser(
 		description='Generates the necessary files for MH-DashBoard.')
 		

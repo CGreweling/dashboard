@@ -263,7 +263,6 @@ var UtilityView = Class.create({
 		this.container.appendChild(base.dom.createElement('div',{className:'utilityTitleLabel subtitle',innerHTML:site.messages.translate('filterbyhost') + ':'}));
 		this.container.appendChild(this.getFilterField('offline',site.messages.translate('offline'),site.instance.config.filters.host.offline,this.hostFilters));
 		this.container.appendChild(this.getFilterField('online',site.messages.translate('online'),site.instance.config.filters.host.online,this.hostFilters));
-		this.container.appendChild(this.getFilterField('vncerror',site.messages.translate('vncerror'),site.instance.config.filters.host.vncerror,this.hostFilters));
 		
 		this.container.appendChild(base.dom.createElement('div',{className:'utilityTitleLabel subtitle',innerHTML:site.messages.translate('filterbymh') + ':'}));
 		this.container.appendChild(this.getFilterField('idle',site.messages.translate('idle'),site.instance.config.filters.mh.idle,this.mhFilters));
@@ -271,6 +270,7 @@ var UtilityView = Class.create({
 		this.container.appendChild(this.getFilterField('capturing',site.messages.translate('capturing'),site.instance.config.filters.mh.capturing,this.mhFilters));
 		this.container.appendChild(this.getFilterField('unregistered',site.messages.translate('unregistered'),site.instance.config.filters.mh.unregistered,this.mhFilters));
 		this.container.appendChild(this.getFilterField('unknown',site.messages.translate('unknown'),site.instance.config.filters.mh.unknown,this.mhFilters));
+		this.container.appendChild(this.getFilterField('shutting_down',site.messages.translate('shutting_down'),site.instance.config.filters.mh.shutting_down,this.mhFilters));
 
 		this.container.appendChild(base.dom.createElement('div',{className:'utilityTitleLabel subtitle',innerHTML:site.messages.translate('filterbycal') + ':'}));
 		this.container.appendChild(this.getFilterField('capturing',site.messages.translate('capturing'),site.instance.config.filters.cal.capturing,this.calFilters));
@@ -404,10 +404,11 @@ var MonitorDashboard = Class.create({
 	
 	load:function(url,onSuccess) {
 		var thisClass = this;
-		jQuery.ajax({url:url}).always(function(data) {
+		jQuery.ajax({url:url, dataType: 'json'}).always(function(data) {	
 			if (typeof(data)=="string") {
 				data = JSON.parse(data);
 			}
+
 			thisClass.agentData = data;
 			thisClass.buildDashboard();
 			thisClass.loadHiddenAgentsFromCookie();
@@ -465,6 +466,7 @@ var MonitorDashboard = Class.create({
 		else if (recordingAgents>1) {
 			message = recordingAgents + " " + site.messages.translate('agentsRecording') + '<br/>';
 		}
+
 		message += site.messages.translate('lastUpdate') + ': ' + lastUpdate;
 		this.messageContainerLeft.innerHTML = message;
 		this.setupCapturingAnimation();
@@ -489,19 +491,17 @@ var MonitorDashboard = Class.create({
 		}
 	},
 	
-	// online, offline, vncerror
+	// online, offline
 	getHostStatus:function(agentData) {
 		var status = 'offline';
 		if (/true/i.test(agentData.online)) {
-			status = 'vncerror';
-		}
-		if (/true/i.test(agentData.VNC)) {
 			status = 'online';
 		}
+		
 		return status;
 	},
 
-	// idle, offline, capturing, unregistered, unknown
+	// idle, offline, capturing, unregistered, unknown, shutting_down
 	getMHStatus:function(agentData) {
 		var status = 'unregistered';
 		if (agentData.mhinfo && agentData.mhinfo.state) {
@@ -608,7 +608,7 @@ var MonitorDashboard = Class.create({
 		var calRec = (cal=='capturing' || cal=='impending' || cal=='today');
 		var hostDown = (host=='offline');
 		var mhRecording = (mh=='capturing');
-		var mhDown = (mh!='idle' && mh!='capturing');
+		var mhDown = (mh!='idle' && mh!='capturing' && mh!='shutting_down');
 
 		var message = '';
 		var className = '';	// ok, warning, error
@@ -653,7 +653,7 @@ var MonitorDashboard = Class.create({
 		}
 		else if (!mhDown && !hostDown) {
 			message = '';
-			className = 'ok'
+			className = 'ok';
 		}
 
 		if (message!='' && className!='') {
@@ -668,14 +668,26 @@ var MonitorDashboard = Class.create({
 		if (!(/http:\/\/(.+)/.test(url))) {
 			url = "http://" + url;
 		}
-		var imageUrl = site.instance.initConfig.thumbsDir + '/' + agentData.thumb;
+		
 		item.agentData = agentData;
 		item.agentStatus = {};
 		item.agentStatus.hostStatus = this.getHostStatus(agentData);
 		item.agentStatus.mhStatus = this.getMHStatus(agentData);
 		item.agentStatus.calendarStatus = this.getCalendarStatus(agentData);
-		if (item.agentStatus.hostStatus=='online') {
-			item.appendChild(base.dom.createElement('img',{className:'dashboardItem image'},{'src':imageUrl,'alt':agentData.agentname}));
+		if (item.agentStatus.hostStatus=='online') 
+		{
+
+			var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent;
+			var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga;
+			/*for (k in agentData.images) {
+				//TODO?
+			}*/
+			var images = base.dom.createElement('div',{className:'dashboardItemImagesContainer',id:agentData.agentname});
+			images.appendChild(base.dom.createElement('img',{className:'dashboardItem bigImage'},{'src':vgaImageUrl,'alt':agentData.agentname}));
+			images.appendChild(base.dom.createElement('img',{className:'dashboardItem smallImage'},{'src':dozentImageUrl,'alt':agentData.agentname}));
+			
+			item.appendChild(images);
+	
 			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
 			item.appendChild(base.dom.createElement('div',{className:'dashboardItem onlineIcon'}));
 		}
@@ -767,10 +779,18 @@ var MonitorDashboard = Class.create({
 		if (!(/http:\/\/(.+)/.test(url))) {
 			url = "http://" + url;
 		}
-		var imageUrl = site.instance.initConfig.thumbsDir + '/' + agentData.image;
 		var hostStatus = this.getHostStatus(agentData);
+		// TODO mhStatus = 'capturing'
 		if (hostStatus=='online') {
-			item.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':imageUrl,'alt':agentData.agentname}));
+			// TODO
+			var images = base.dom.createElement('div',{className:'dashboardDetailImages',id:agentData.agentname});
+			var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent;
+			var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga;
+			images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':dozentImageUrl,'alt':agentData.agentname}));
+			images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':vgaImageUrl,'alt':agentData.agentname}));
+			item.appendChild(images);
+
+
 		}
 		else if (hostStatus=='vncerror') {
 			item.appendChild(base.dom.createElement('img',{className:'dashboardDetail offlineImage'},{'src':'resources/vnc_error_screen.png','alt':'vnc error'}));
@@ -800,13 +820,13 @@ var MonitorDashboard = Class.create({
 
 	showInfo:function(agentElem) {
 		var infoContainer = this.createInfoItem(agentElem.agentData);
-		
-		site.messageBox.showElement(infoContainer,{width:'80%',height:'70%',closeButton:true});
+
+		site.messageBox.showElement(infoContainer,{width:'90%',height:'70%',closeButton:true});
 		
 	},
 	
 	connectVnc:function(agentElem) {
-		window.open('agent_vnc.htm?host=' + agentElem.agentData.agenturl);
+		window.open(agentElem.agentData.agenturl);
 	},
 
 	applyFilters:function(animate) {
@@ -825,7 +845,8 @@ var MonitorDashboard = Class.create({
 					offline:true,
 					capturing:true,
 					unregistered:true,
-					unknown:true
+					unknown:true,
+					shutting_down:true
 				},
 				cal:{
 					capturing:true,
@@ -847,7 +868,7 @@ var MonitorDashboard = Class.create({
 				if (filters.host[hostStatus] && filters.mh[mhStatus] && filters.cal[calStatus] && !agent.isAgentHidden) {
 					visible = true;
 				}
-
+				
 				if (visible) {
 					this.showAgent(agent,animate);
 				}
@@ -922,6 +943,7 @@ var MonitorDashboard = Class.create({
 		}
 		site.instance.config.agentItemSize = width;
 		var height = width;
+		// TODO evtl anpassen
 		var style = {
 						"width":width + "px",
 						"height":height + "px"
@@ -958,7 +980,7 @@ var AgentMonitor = Class.create({
 		reloadAllMinutes:60,
 		agentDataUrl:'agents.json',
 		imagesDir:'screenshots',
-		thumbsDir:'screenshots',
+		//thumbsDir:'screenshots',
 		zoomIncrement:50,
 		recordingAlertTresshold:120
 	},
@@ -968,7 +990,7 @@ var AgentMonitor = Class.create({
 			if (initConfig.reloadMinutes) this.initConfig.reloadMinutes = initConfig.reloadMinutes;
 			if (initConfig.agentDataUrl) this.initConfig.agentDataUrl = initConfig.agentDataUrl;
 			if (initConfig.imagesDir) this.initConfig.imagesDir = initConfig.imagesDir;
-			if (initConfig.thumbsDir) this.initConfig.thumbsDir = initConfig.thumbsDir;
+			//if (initConfig.thumbsDir) this.initConfig.thumbsDir = initConfig.thumbsDir;
 			if (initConfig.zoomIncrement) this.initConfig.zoomIncrement = initConfig.zoomIncrement;
 			if (initConfig.recordingAlertTresshold) this.initConfig.recordingAlertTresshold = initConfig.recordingAlertTresshold;
 			if (initConfig.reloadAllMinutes) this.initConfig.reloadAllMinutes = initConfig.reloadAllMinutes;
@@ -1023,7 +1045,8 @@ var AgentMonitor = Class.create({
 					offline:true,
 					capturing:true,
 					unregistered:true,
-					unknown:true
+					unknown:true,
+					shutting_down:true
 				},
 				cal: {
 					capturing:true,
@@ -1053,7 +1076,7 @@ var AgentMonitor = Class.create({
 	create:function() {
 		var thisClass = this;
 		this.dashboard = new MonitorDashboard(this.mainContainer);
-		this.utils = new UtilityView(this.mainContainer,this.dashboard);
+		this.utils = new UtilityView(this.mainContainer, this.dashboard);
 		var showUtilsButtonClass = "showUtilsButton";
 		var showButton = null;
 		if (this.config.showUtils) {
@@ -1077,5 +1100,6 @@ var AgentMonitor = Class.create({
 		this.dashboard.mainContainer.appendChild(showButton);
 		this.loader = base.dom.createElement('div',{className:'loaderContainer'});
 		this.mainContainer.appendChild(this.loader);
+
 	}
 });
