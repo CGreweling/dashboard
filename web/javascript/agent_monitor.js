@@ -459,6 +459,20 @@ var MonitorDashboard = Class.create({
 				this.agentElem.push(item);
 			}
 		}
+		// NCastBoxes
+		for (var i in this.agentData.ncast_agents) {
+			var agent = this.agentData.ncast_agents[i];
+			if (typeof(agent)=="object") {
+				var item = this.createNCastItem(agent);
+				if (this.getMHStatus(agent)=='capturing') {
+					++recordingAgents;
+				}
+				this.dashboardContainer.appendChild(item);
+				base.dom.prepareToScaleTexts(item);
+				this.agentElem.push(item);
+			}
+		}
+		//
 		var message = "";
 		if (recordingAgents==1) {
 			message = recordingAgents + " " + site.messages.translate('agentRecording') + '<br/>';
@@ -680,7 +694,7 @@ var MonitorDashboard = Class.create({
 			var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent;
 			var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga;
 			/*for (k in agentData.images) {
-				//TODO?
+				
 			}*/
 			var images = base.dom.createElement('div',{className:'dashboardItemImagesContainer',id:agentData.agentname});
 			images.appendChild(base.dom.createElement('img',{className:'dashboardItem bigImage'},{'src':vgaImageUrl,'alt':agentData.agentname}));
@@ -707,6 +721,104 @@ var MonitorDashboard = Class.create({
 			item.appendChild(statusMessage);
 		}
 
+		var iconStatus = 'unreachable';
+		if (item.agentStatus.hostStatus=='vncerror') {
+			iconStatus = 'idle';
+		}
+		else if (item.agentStatus.hostStatus=='online') {
+			iconStatus = 'idle';
+		}
+		
+		if (item.agentStatus.mhStatus == 'capturing' && iconStatus=='idle') {
+			iconStatus = 'capturing';
+		}
+
+		item.appendChild(base.dom.createElement('div',{className:'dashboardItem statusIcon ' + iconStatus}));
+		item.appendChild(base.dom.createElement('div',{className:'dashboardItem info name',innerHTML:agentData.agentname}));
+		if (agentData.enrich) {
+			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info campus',innerHTML:agentData.enrich.campus}));
+			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info building',innerHTML:agentData.enrich.building}));
+			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info center',innerHTML:agentData.enrich.center}));
+			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info classroom',innerHTML:agentData.enrich.classroom}));
+		}		
+		var infoButton = base.dom.createElement('div',{className:'dashboardItem infoButton',innerHTML:'i'});
+		item.appendChild(infoButton);
+		var thisClass = this;
+		$(infoButton).click(function(event) { thisClass.showInfo(this.parentNode); });
+		var hideButton = base.dom.createElement('div',{className:'dashboardItem hideButton show'},{'title':site.messages.translate('hideAgent')});
+		item.appendChild(hideButton);
+		$(hideButton).click(function(event) {
+			if (/show/.test(this.className)) {
+				this.className = 'dashboardItem hideButton hide';
+				this.title = site.messages.translate('showAgent');
+				thisClass.hideItem(this.parentNode);
+				site.instance.config.hiddenAgents[this.parentNode.agentData.agentname] = true;
+				site.instance.saveConfig();
+			}
+			else {
+				this.className = 'dashboardItem hideButton show';
+				this.title = site.messages.translate('hideAgent');
+				thisClass.showItem(this.parentNode);
+				site.instance.config.hiddenAgents[this.parentNode.agentData.agentname] = false;
+				site.instance.saveConfig();
+			}
+		});
+		if (item.agentStatus.hostStatus=='online') {
+			var vncButton = base.dom.createElement('div',{className:'dashboardItem vncButton'});
+			item.appendChild(vncButton);
+			$(vncButton).click(function(event) { thisClass.connectVnc(this.parentNode); });
+		}
+
+		$(item).css({
+			'width':this.defaultItemProperties.w + 'px',
+			'height':this.defaultItemProperties.h + 'px',
+			'float':'left'
+		});
+		return item;
+	},
+
+	createNCastItem:function(agentData) {
+		var item = base.dom.createElement('div',{className:'dashboardItemContainer',id:agentData.agentname});
+		var url = agentData.agenturl;
+		if (!(/http:\/\/(.+)/.test(url))) {
+			url = "http://" + url;
+		}
+		
+		// TODO hostStatus
+		item.agentData = agentData;
+		item.agentStatus = {};
+		item.agentStatus.hostStatus = 'online';//this.getHostStatus(agentData);
+		item.agentStatus.mhStatus = this.getMHStatus(agentData);
+		item.agentStatus.calendarStatus = this.getCalendarStatus(agentData);
+		if (item.agentStatus.hostStatus=='online') 
+		{
+
+			var ImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.image;
+			
+			var images = base.dom.createElement('div',{className:'dashboardItemImagesContainer',id:agentData.agentname});
+			images.appendChild(base.dom.createElement('img',{className:'dashboardItem bigImage'},{'src':ImageUrl,'alt':agentData.agentname}));
+			
+			item.appendChild(images);
+	
+			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
+			item.appendChild(base.dom.createElement('div',{className:'dashboardItem onlineIcon'}));
+		}
+		else if (item.agentStatus.hostStatus=='vncerror') {
+			item.appendChild(base.dom.createElement('img',{className:'dashboardItem offlineImage'},{'src':'resources/vnc_error_screen.png','alt':'vnc error'}));
+			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
+			item.appendChild(base.dom.createElement('div',{className:'dashboardItem offlineIcon'}));
+		}
+		else {
+			item.appendChild(base.dom.createElement('img',{className:'dashboardItem offlineImage'},{'src':'resources/offline_agent.png','alt':'offline agent'}));
+			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
+			item.appendChild(base.dom.createElement('div',{className:'dashboardItem offlineIcon'}));
+		}
+		
+		/*var statusMessage = this.getStatusMessage(item.agentStatus);
+		if (statusMessage) {
+			item.appendChild(statusMessage);
+		}
+*/
 		var iconStatus = 'unreachable';
 		if (item.agentStatus.hostStatus=='vncerror') {
 			iconStatus = 'idle';
