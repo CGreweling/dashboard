@@ -377,7 +377,7 @@ def getConfigOption(config, section, option):
 
 
 def process(conf_file):	
-	config = ConfigParser.RawConfigParser(allow_no_value=True)
+	config = ConfigParser.RawConfigParser()
 	config.read(conf_file)
 	snapshotFolder = getConfigOption(config, "dashboard-config", "snapShotFolder")	
 	outputJSONFile = getConfigOption(config, "dashboard-config", "outputJSONFile")
