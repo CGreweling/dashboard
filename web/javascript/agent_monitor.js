@@ -404,6 +404,7 @@ var MonitorDashboard = Class.create({
 	
 	load:function(url,onSuccess) {
 		var thisClass = this;
+		url += "?" + new Date().getTime();
 		jQuery.ajax({url:url, dataType: 'json'}).always(function(data) {	
 			if (typeof(data)=="string") {
 				data = JSON.parse(data);
@@ -679,6 +680,7 @@ var MonitorDashboard = Class.create({
 	createItem:function(agentData) {
 		var item = base.dom.createElement('div',{className:'dashboardItemContainer',id:agentData.agentname});
 		var url = agentData.agenturl;
+		var timestamp =  new Date().getTime();
 		if (!(/http:\/\/(.+)/.test(url))) {
 			url = "http://" + url;
 		}
@@ -691,8 +693,8 @@ var MonitorDashboard = Class.create({
 		if (item.agentStatus.hostStatus=='online') 
 		{
 
-			var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent;
-			var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga;
+			var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent + "?" + timestamp;
+			var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga + "?" + timestamp;
 			/*for (k in agentData.images) {
 				
 			}*/
@@ -780,12 +782,14 @@ var MonitorDashboard = Class.create({
 	createNCastItem:function(agentData) {
 		var item = base.dom.createElement('div',{className:'dashboardItemContainer',id:agentData.agentname});
 		var url = agentData.agenturl;
+		var timestamp =  new Date().getTime();
 		if (!(/http:\/\/(.+)/.test(url))) {
 			url = "http://" + url;
 		}
 		
 		// TODO hostStatus
 		item.agentData = agentData;
+		//console.log(agentData);
 		item.agentStatus = {};
 		item.agentStatus.hostStatus = 'online';//this.getHostStatus(agentData);
 		item.agentStatus.mhStatus = this.getMHStatus(agentData);
@@ -793,7 +797,7 @@ var MonitorDashboard = Class.create({
 		if (item.agentStatus.hostStatus=='online') 
 		{
 
-			var ImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.image;
+			var ImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.image + "?" + timestamp;
 			
 			var images = base.dom.createElement('div',{className:'dashboardItemImagesContainer',id:agentData.agentname});
 			images.appendChild(base.dom.createElement('img',{className:'dashboardItem bigImage'},{'src':ImageUrl,'alt':agentData.agentname}));
@@ -814,11 +818,6 @@ var MonitorDashboard = Class.create({
 			item.appendChild(base.dom.createElement('div',{className:'dashboardItem offlineIcon'}));
 		}
 		
-		/*var statusMessage = this.getStatusMessage(item.agentStatus);
-		if (statusMessage) {
-			item.appendChild(statusMessage);
-		}
-*/
 		var iconStatus = 'unreachable';
 		if (item.agentStatus.hostStatus=='vncerror') {
 			iconStatus = 'idle';
@@ -888,28 +887,37 @@ var MonitorDashboard = Class.create({
 	createInfoItem:function(agentData) {
 		var item = base.dom.createElement('div',{className:'dashboardDetailContainer',id:agentData.agentname});
 		var url = agentData.agenturl;
+		var timestamp =  new Date().getTime();
 		if (!(/http:\/\/(.+)/.test(url))) {
 			url = "http://" + url;
 		}
 		var hostStatus = this.getHostStatus(agentData);
-		// TODO mhStatus = 'capturing'
-		if (hostStatus=='online') {
-			// TODO
+		
+		if (agentData.ncastinfo) {
+			var ImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.image + "?" + timestamp;
 			var images = base.dom.createElement('div',{className:'dashboardDetailImages',id:agentData.agentname});
-			var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent;
-			var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga;
-			images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':dozentImageUrl,'alt':agentData.agentname}));
-			images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':vgaImageUrl,'alt':agentData.agentname}));
+			images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':ImageUrl,'alt':agentData.agentname}));
 			item.appendChild(images);
-
-
-		}
-		else if (hostStatus=='vncerror') {
-			item.appendChild(base.dom.createElement('img',{className:'dashboardDetail offlineImage'},{'src':'resources/vnc_error_screen.png','alt':'vnc error'}));
 		}
 		else {
-			item.appendChild(base.dom.createElement('img',{className:'dashboardDetail offlineImage'},{'src':'resources/offline_agent.png','alt':'offline agent'}));
-		}
+			// TODO mhStatus = 'capturing'
+			if (hostStatus=='online') {
+				var images = base.dom.createElement('div',{className:'dashboardDetailImages',id:agentData.agentname});
+				var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent + "?" + timestamp;
+				var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga + "?" + timestamp;
+				images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':dozentImageUrl,'alt':agentData.agentname}));
+				images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':vgaImageUrl,'alt':agentData.agentname}));
+				item.appendChild(images);
+
+
+			}
+		
+			else {
+				item.appendChild(base.dom.createElement('img',{className:'dashboardDetail offlineImage'},{'src':'resources/offline_agent.png','alt':'offline agent'}));
+			}
+		}		
+
+
 		var infoContainer = base.dom.createElement('div',{className:'dashboardDetailInfoContainer'});
 		infoContainer.appendChild(base.dom.createElement('div',{className:'dashboardDetail info name',innerHTML:'<span class="dashboardDetail info label">' + site.messages.translate('name') + '</span>:' + agentData.agentname}));
 		infoContainer.appendChild(base.dom.createElement('div',{className:'dashboardDetail info name',innerHTML:'<span class="dashboardDetail info label">' + site.messages.translate('address') + '</span>:' + agentData.agenturl}));
@@ -950,7 +958,8 @@ var MonitorDashboard = Class.create({
 				host:{
 					offline:true,
 					online:true,
-					vncerror:true
+					vncerror:true,
+					unknown:true
 				},
 				mh:{
 					idle:true,
@@ -958,13 +967,15 @@ var MonitorDashboard = Class.create({
 					capturing:true,
 					unregistered:true,
 					unknown:true,
-					shutting_down:true
+					shutting_down:true,
+					unknown:true
 				},
 				cal:{
 					capturing:true,
 					impending:true,
 					today:true,
-					idle:true
+					idle:true,
+					unknown:true
 				}
 			};
 		}
@@ -978,6 +989,9 @@ var MonitorDashboard = Class.create({
 				var calStatus = agent.agentStatus.calendarStatus;
 				var visible = false;
 				if (filters.host[hostStatus] && filters.mh[mhStatus] && filters.cal[calStatus] && !agent.isAgentHidden) {
+					visible = true;
+				}
+				else if (agent.agentData.ncastinfo && !agent.isAgentHidden) {
 					visible = true;
 				}
 				
@@ -1092,9 +1106,8 @@ var AgentMonitor = Class.create({
 		reloadAllMinutes:60,
 		agentDataUrl:'agents.json',
 		imagesDir:'screenshots',
-		//thumbsDir:'screenshots',
 		zoomIncrement:50,
-		recordingAlertTresshold:120
+		recordingAlertTresshold:120,
 	},
 
 	initialize:function(container,initConfig) {
@@ -1102,7 +1115,6 @@ var AgentMonitor = Class.create({
 			if (initConfig.reloadMinutes) this.initConfig.reloadMinutes = initConfig.reloadMinutes;
 			if (initConfig.agentDataUrl) this.initConfig.agentDataUrl = initConfig.agentDataUrl;
 			if (initConfig.imagesDir) this.initConfig.imagesDir = initConfig.imagesDir;
-			//if (initConfig.thumbsDir) this.initConfig.thumbsDir = initConfig.thumbsDir;
 			if (initConfig.zoomIncrement) this.initConfig.zoomIncrement = initConfig.zoomIncrement;
 			if (initConfig.recordingAlertTresshold) this.initConfig.recordingAlertTresshold = initConfig.recordingAlertTresshold;
 			if (initConfig.reloadAllMinutes) this.initConfig.reloadAllMinutes = initConfig.reloadAllMinutes;
