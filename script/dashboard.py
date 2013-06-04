@@ -382,7 +382,7 @@ def process(conf_file):
 	snapshotFolder = getConfigOption(config, "dashboard-config", "snapShotFolder")	
 	outputJSONFile = getConfigOption(config, "dashboard-config", "outputJSONFile")
 	configAgentsFolder = getConfigOption(config, "dashboard-config", "configAgentsFolder")
-	
+
 	if (snapshotFolder == None):
 		print "Error: snapShotFolder not defined in config file!"
 		sys.exit(1)

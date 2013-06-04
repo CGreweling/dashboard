@@ -908,8 +908,6 @@ var MonitorDashboard = Class.create({
 				images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':dozentImageUrl,'alt':agentData.agentname}));
 				images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':vgaImageUrl,'alt':agentData.agentname}));
 				item.appendChild(images);
-
-
 			}
 		
 			else {
@@ -1069,7 +1067,6 @@ var MonitorDashboard = Class.create({
 		}
 		site.instance.config.agentItemSize = width;
 		var height = width;
-		// TODO evtl anpassen
 		var style = {
 						"width":width + "px",
 						"height":height + "px"
