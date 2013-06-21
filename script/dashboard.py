@@ -58,13 +58,42 @@ class MatterhornClient:
 		d_from = "%04d-%02d-%02dT00:00:00Z" % (date_from.year, date_from.month, date_from.day)
 		d_to = "%04d-%02d-%02dT00:00:00Z" % (date_to.year, date_to.month, date_to.day)
 		
-
-		resp = opener.open(self.server_url + "/recordings/recordings.json?sort=CREATED&startsfrom="+d_from+"&endsto="+d_to)	
+		new_task = 0
+		task = 0
+		tasks = {}
+	
+		resp = opener.open(self.server_url + "/recordings/calendars")	
 		
-		return (resp.code, resp.read())
+		content = resp.readlines()
+
+		for line in content:
+			line = line.strip()
+			if line.startswith("BEGIN:VEVENT"):
+				new_task = 1
+			if line.startswith("RELATED-TO:"):
+				new_task = 0
+				task = task + 1
+			if new_task:
+				if (tasks.has_key(task) == False):
+						tasks[task] = []
+				if line != '':
+					tasks[task].append(line)
+
+
+		calendar = {}
+
+		for t in tasks:
+			agent = tasks[t][7].split(':')[1]
+			start = tasks[t][2].split(':')[1]
+			end = tasks[t][3].split(':')[1]
+			title = tasks[t][4].split(':')[1]
+			if (calendar.has_key(agent) == False):
+				calendar[agent] = []
 		
+			calendar[agent].append({"title":title, "start":start, "end":end})		
 
-
+		return (resp.code, calendar)
+		
 
 
 def md5_for_file(filename):
@@ -118,6 +147,24 @@ def generateAgentScreenShoot(ip, agent_username, agent_passwd, snapshotFolder, a
 
 	return 1
 
+def generateNCastBoxScreenShoot(agent_url, user, passwd, snapshotFolder, agent_name):
+
+	img = snapshotFolder + agent_name
+	outimg = img + ".jpg"
+
+	authhandler = urllib2.HTTPDigestAuthHandler()
+	authhandler.add_password("Presentation Recorder", agent_url, user, passwd)
+	opener = urllib2.build_opener(authhandler)
+	
+	resp = opener.open(agent_url + "/rest/files/preview.jpg")
+	
+	f = open(outimg, 'w')
+	f.write(resp.read())
+	f.close()
+	resp.close() 
+
+	return 1
+
 def getMatterHornInfo(MHAgentsInfo, agentName):
 	for a in MHAgentsInfo:
 		if (a["name"] == agentName):		
@@ -138,7 +185,7 @@ def getMatterHornAgentsInfo(config):
 		jj = json.loads(info[1])
 		return jj["agents"]["agent"]
 
-# TODO
+
 def getMatterHornCalendarInfo(config):
 	MH_server = config.get("dashboard-config", "MHServer")
 	MH_user = config.get("dashboard-config", "MHuser")
@@ -148,22 +195,10 @@ def getMatterHornCalendarInfo(config):
 	calendar = MH.getCalendar(datetime.datetime.utcnow().date(), datetime.datetime.utcnow().date()+datetime.timedelta(days=7))
 	ret = {}
 	if calendar[0] == 200:
-		catalogs =  json.loads(calendar[1])
-		for c in catalogs["catalogs"]:
-			try:
-				agent = c["http://purl.org/dc/terms/"]["spatial"][0]["value"]
-				title = c["http://purl.org/dc/terms/"]["title"][0]["value"]
-				spatial = c["http://purl.org/dc/terms/"]["temporal"][0]["value"]
-				ss = spatial.split(";")
-				start=ss[0].split("=")[1]
-				end=ss[1].split("=")[1]
-				if (ret.has_key(agent) == False):
-					ret[agent] = []
-				ret[agent].append({"title":title, "start":start, "end":end})
-			except:
-				pass
+		ret = calendar[1]
 			
 	return ret
+
 
 def getJSONitems(config, agentSection):
 	json_items = ""
@@ -178,7 +213,7 @@ def getJSONitems(config, agentSection):
 	return json_items[:-2]
 
 
-#TODO
+#TODO calendar
 def generateAgentJSON(config, MHAgentsInfo, MHCalendarInfo, agentSection):
 	MHinfo = getMatterHornInfo(MHAgentsInfo, agentSection)
 	agent_url = getConfigOption(config, agentSection, "url")
@@ -203,22 +238,30 @@ def generateAgentJSON(config, MHAgentsInfo, MHCalendarInfo, agentSection):
 	
 	images = {}
 
+	ncastNames = getNcastNames(config)	
+
 	if (agent_online):	
-		if (agent_state == "capturing"):
-			devices = getAgentDevices(agent_url, MH_user, MH_passwd) 
-			generateAgentScreenShoot(agent_url, MH_user, MH_passwd, snapshotFolder, agentSection, devices)
+		if (agent_state == "capturing" or agentSection in ncastNames):
+			if (agentSection in ncastNames):
+				generateNCastBoxScreenShoot(agent_url, MH_user, MH_passwd, snapshotFolder, agentSection)
+				images["main"] = agentSection+".jpg"
+			else:
+				devices = getAgentDevices(agent_url, MH_user, MH_passwd) 
+				generateAgentScreenShoot(agent_url, MH_user, MH_passwd, snapshotFolder, agentSection, devices)
 			
-			for device in devices:
-				images[device]= agentSection+device+".jpg"
+				for device in devices:
+					images[device]= agentSection+device+".jpg"
 			
 		MHinfo = getMatterHornInfo(MHAgentsInfo, agentSection)	
+
 	else:
 		MHinfo = {}
-				
+
 	json_items = getJSONitems(config, agentSection)	
+
 	
 
-#TODO calendar
+#TODO calendar debug
 	calendar = []
 	#if MHCalendarInfo.has_key(agentSection):
 	#	calendar = MHCalendarInfo[agentSection]
@@ -256,10 +299,20 @@ def getAgentsNames(config, MHAgentsInfo):
 	ret.sort()		
 	return ret
 
+def getNcastNames(config):
+	
+	agents = config.items("ncast-boxes")
+	names = {}
 
+	for agent in agents:
+		names[agent[0]] = agent[0]
+
+	return names
+
+#TODO Calendar
 def generateAllAgentsJSON(config, datetime_str):
 	MHAgentsInfo = getMatterHornAgentsInfo(config)
-	MHCalendarInfo = 0#getMatterHornCalendarInfo(config)
+	MHCalendarInfo = None#getMatterHornCalendarInfo(config)
 	agentNames = getAgentsNames(config, MHAgentsInfo)	
 	
 	json_agents=""
@@ -268,95 +321,13 @@ def generateAllAgentsJSON(config, datetime_str):
 		json_agents += "\t"+a_out +",\n"
 	json_agents = json_agents[:-2]
 	
-	ncast_agents = generateAllNCastBoxesJSON(config)
-	
 	json="{\n"
 	json+="\"datetime\": \""+datetime_str+"\",\n"
 	json+="\"agents\": [\n"
 	json+= json_agents + "\n"
-	json+= "],\n"
-	json+="\"ncast_agents\": [\n"
-	json+= ncast_agents + "\n"
-	json+="]}\n"
+	json+= "]}\n"
 
 	return json
-
-##################### NCast Boxes Begin ####################################
-
-def generateAllNCastBoxesJSON(config):
-	
-	agents = config.items("ncast-boxes")
-
-	json_agents=""
-	for agent in agents:
-		a_out = generateNCastBoxJson(config, agent[0], agent[1])
-		json_agents += "\t"+a_out +",\n"
-	json_agents = json_agents[:-2]
-
-	return json_agents
-
-def generateNCastBoxJson(config, agent_name, agent_url):
-	snapshotFolder = getConfigOption(config, "dashboard-config", "snapShotFolder")	
-
-	user = config.get("dashboard-config", "MHuser")
-	passwd = config.get("dashboard-config", "MHPassword")
-	
-	#TODO read state, online from info ?	
-	ncast_info = getNCastBoxInfo(agent_url, user, passwd)
-
-	agent_state = "capturing"
-	agent_online = 1
-
-	if (agent_online):	
-		if (agent_state == "capturing"):
-			generateNCastBoxScreenShoot(agent_url, user, passwd, snapshotFolder, agent_name)
-			image = agent_name+".jpg"
-			
-		
-	line_str = "{ "
-	line_str += "\"agentname\": \"" + agent_name +"\",\t"
-	line_str += "\"agenturl\": \"" + agent_url +"\",\t"
-	line_str += "\"online\": \"" + str(agent_online) +"\",\t"
-	line_str += "\"ncastinfo\": " + ncast_info + ", \t"
-	line_str += "\"image\":  \"" + image + "\"\t"
-	line_str += " }"
-		
-	return line_str
-
-def generateNCastBoxScreenShoot(agent_url, user, passwd, snapshotFolder, agent_name):
-
-	img = snapshotFolder + agent_name
-	outimg = img + ".jpg"
-
-	authhandler = urllib2.HTTPDigestAuthHandler()
-	authhandler.add_password("Presentation Recorder", agent_url, user, passwd)
-	opener = urllib2.build_opener(authhandler)
-	
-	resp = opener.open(agent_url + "/rest/files/preview.jpg")
-	
-	f = open(outimg, 'w')
-	f.write(resp.read())
-	f.close()
-	resp.close() 
-
-	return 1
-
-
-def getNCastBoxInfo(agent_url, user, passwd):
-
-	authhandler = urllib2.HTTPDigestAuthHandler()
-	authhandler.add_password("Presentation Recorder", agent_url, user, passwd)
-	opener = urllib2.build_opener(authhandler)
-	
-	resp = opener.open(agent_url + "/rest/status/status")
-	info = resp.read()
-	resp.close() 
-	
-	return info
-
-
-##################### NCast Boxes End   ####################################
-
 
 def readAgentsConfig(config, configAgentsFolder):	
 	for r,d,f in os.walk(configAgentsFolder):		

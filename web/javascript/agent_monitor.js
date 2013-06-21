@@ -310,7 +310,7 @@ var UtilityView = Class.create({
 		// matterhorn filters
 		this.saveFilters(this.mhFilters,site.instance.config.filters.mh);
 
-		// 		
+		// calendar filters 		
 		this.saveFilters(this.calFilters,site.instance.config.filters.cal);
 
 		site.instance.config.showHiddenAgents = showHidden;
@@ -460,21 +460,9 @@ var MonitorDashboard = Class.create({
 				this.agentElem.push(item);
 			}
 		}
-		// NCastBoxes
-		for (var i in this.agentData.ncast_agents) {
-			var agent = this.agentData.ncast_agents[i];
-			if (typeof(agent)=="object") {
-				var item = this.createNCastItem(agent);
-				if (this.getMHStatus(agent)=='capturing') {
-					++recordingAgents;
-				}
-				this.dashboardContainer.appendChild(item);
-				base.dom.prepareToScaleTexts(item);
-				this.agentElem.push(item);
-			}
-		}
-		//
+
 		var message = "";
+
 		if (recordingAgents==1) {
 			message = recordingAgents + " " + site.messages.translate('agentRecording') + '<br/>';
 		}
@@ -525,6 +513,7 @@ var MonitorDashboard = Class.create({
 		return status;
 	},
 
+	// TODO
 	getRecordingStatus:function(startDate,endDate) {
 		var today = new Date();
 		var diff = (today - startDate) / 1000;
@@ -693,17 +682,31 @@ var MonitorDashboard = Class.create({
 		if (item.agentStatus.hostStatus=='online') 
 		{
 
-			var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent + "?" + timestamp;
-			var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga + "?" + timestamp;
-			/*for (k in agentData.images) {
-				
-			}*/
-			var images = base.dom.createElement('div',{className:'dashboardItemImagesContainer',id:agentData.agentname});
-			images.appendChild(base.dom.createElement('img',{className:'dashboardItem bigImage'},{'src':vgaImageUrl,'alt':agentData.agentname}));
-			images.appendChild(base.dom.createElement('img',{className:'dashboardItem smallImage'},{'src':dozentImageUrl,'alt':agentData.agentname}));
+			if (item.agentStatus.mhStatus == 'capturing') 
+			{
+				var imagesCount = 0;			
+				for (image in agentData.images) {
+					imagesCount++;	
+				}
+				if (imagesCount == 1) {
+					// NCast
+					var bigImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.main + "?" + timestamp;	
+				}
+				else {
+					// MH-Agent
+					var bigImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga + "?" + timestamp;
 			
-			item.appendChild(images);
+				}
+				var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent + "?" + timestamp;
+				var images = base.dom.createElement('div',{className:'dashboardItemImagesContainer',id:agentData.agentname});
+				images.appendChild(base.dom.createElement('img',{className:'dashboardItem bigImage'},{'src':bigImageUrl,'alt':agentData.agentname}));
+			
+				images.appendChild(base.dom.createElement('img',{className:'dashboardItem smallImage'},{'src':dozentImageUrl,'alt':agentData.agentname}));
+			
+				item.appendChild(images);
 	
+			}
+
 			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
 			item.appendChild(base.dom.createElement('div',{className:'dashboardItem onlineIcon'}));
 		}
@@ -778,101 +781,6 @@ var MonitorDashboard = Class.create({
 		});
 		return item;
 	},
-
-	createNCastItem:function(agentData) {
-		var item = base.dom.createElement('div',{className:'dashboardItemContainer',id:agentData.agentname});
-		var url = agentData.agenturl;
-		var timestamp =  new Date().getTime();
-		if (!(/http:\/\/(.+)/.test(url))) {
-			url = "http://" + url;
-		}
-		
-		// TODO hostStatus
-		item.agentData = agentData;
-		//console.log(agentData);
-		item.agentStatus = {};
-		item.agentStatus.hostStatus = 'online';//this.getHostStatus(agentData);
-		item.agentStatus.mhStatus = this.getMHStatus(agentData);
-		item.agentStatus.calendarStatus = this.getCalendarStatus(agentData);
-		if (item.agentStatus.hostStatus=='online') 
-		{
-
-			var ImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.image + "?" + timestamp;
-			
-			var images = base.dom.createElement('div',{className:'dashboardItemImagesContainer',id:agentData.agentname});
-			images.appendChild(base.dom.createElement('img',{className:'dashboardItem bigImage'},{'src':ImageUrl,'alt':agentData.agentname}));
-			
-			item.appendChild(images);
-	
-			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
-			item.appendChild(base.dom.createElement('div',{className:'dashboardItem onlineIcon'}));
-		}
-		else if (item.agentStatus.hostStatus=='vncerror') {
-			item.appendChild(base.dom.createElement('img',{className:'dashboardItem offlineImage'},{'src':'resources/vnc_error_screen.png','alt':'vnc error'}));
-			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
-			item.appendChild(base.dom.createElement('div',{className:'dashboardItem offlineIcon'}));
-		}
-		else {
-			item.appendChild(base.dom.createElement('img',{className:'dashboardItem offlineImage'},{'src':'resources/offline_agent.png','alt':'offline agent'}));
-			item.appendChild(base.dom.createElement('img',{className:'dashboardItem screenGlass'},{'src':'resources/monitor_glass.png','alt':'screen glass'}));
-			item.appendChild(base.dom.createElement('div',{className:'dashboardItem offlineIcon'}));
-		}
-		
-		var iconStatus = 'unreachable';
-		if (item.agentStatus.hostStatus=='vncerror') {
-			iconStatus = 'idle';
-		}
-		else if (item.agentStatus.hostStatus=='online') {
-			iconStatus = 'idle';
-		}
-		
-		if (item.agentStatus.mhStatus == 'capturing' && iconStatus=='idle') {
-			iconStatus = 'capturing';
-		}
-
-		item.appendChild(base.dom.createElement('div',{className:'dashboardItem statusIcon ' + iconStatus}));
-		item.appendChild(base.dom.createElement('div',{className:'dashboardItem info name',innerHTML:agentData.agentname}));
-		if (agentData.enrich) {
-			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info campus',innerHTML:agentData.enrich.campus}));
-			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info building',innerHTML:agentData.enrich.building}));
-			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info center',innerHTML:agentData.enrich.center}));
-			item.appendChild(base.dom.createElement('div',{className:'dashboardItem info classroom',innerHTML:agentData.enrich.classroom}));
-		}		
-		var infoButton = base.dom.createElement('div',{className:'dashboardItem infoButton',innerHTML:'i'});
-		item.appendChild(infoButton);
-		var thisClass = this;
-		$(infoButton).click(function(event) { thisClass.showInfo(this.parentNode); });
-		var hideButton = base.dom.createElement('div',{className:'dashboardItem hideButton show'},{'title':site.messages.translate('hideAgent')});
-		item.appendChild(hideButton);
-		$(hideButton).click(function(event) {
-			if (/show/.test(this.className)) {
-				this.className = 'dashboardItem hideButton hide';
-				this.title = site.messages.translate('showAgent');
-				thisClass.hideItem(this.parentNode);
-				site.instance.config.hiddenAgents[this.parentNode.agentData.agentname] = true;
-				site.instance.saveConfig();
-			}
-			else {
-				this.className = 'dashboardItem hideButton show';
-				this.title = site.messages.translate('hideAgent');
-				thisClass.showItem(this.parentNode);
-				site.instance.config.hiddenAgents[this.parentNode.agentData.agentname] = false;
-				site.instance.saveConfig();
-			}
-		});
-		if (item.agentStatus.hostStatus=='online') {
-			var vncButton = base.dom.createElement('div',{className:'dashboardItem vncButton'});
-			item.appendChild(vncButton);
-			$(vncButton).click(function(event) { thisClass.connectVnc(this.parentNode); });
-		}
-
-		$(item).css({
-			'width':this.defaultItemProperties.w + 'px',
-			'height':this.defaultItemProperties.h + 'px',
-			'float':'left'
-		});
-		return item;
-	},
 	
 	hideItem:function(agentElem) {
 		agentElem.isAgentHidden = true;
@@ -892,29 +800,39 @@ var MonitorDashboard = Class.create({
 			url = "http://" + url;
 		}
 		var hostStatus = this.getHostStatus(agentData);
+		var imgCount = agentData.images.length;
+		var mhStatus = this.getMHStatus(agentData);
 		
-		if (agentData.ncastinfo) {
-			var ImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.image + "?" + timestamp;
-			var images = base.dom.createElement('div',{className:'dashboardDetailImages',id:agentData.agentname});
-			images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':ImageUrl,'alt':agentData.agentname}));
-			item.appendChild(images);
-		}
-		else {
-			// TODO mhStatus = 'capturing'
-			if (hostStatus=='online') {
-				var images = base.dom.createElement('div',{className:'dashboardDetailImages',id:agentData.agentname});
-				var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent + "?" + timestamp;
-				var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga + "?" + timestamp;
-				images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':dozentImageUrl,'alt':agentData.agentname}));
-				images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':vgaImageUrl,'alt':agentData.agentname}));
-				item.appendChild(images);
-			}
-		
-			else {
-				item.appendChild(base.dom.createElement('img',{className:'dashboardDetail offlineImage'},{'src':'resources/offline_agent.png','alt':'offline agent'}));
-			}
-		}		
 
+		if (hostStatus=='online') {
+			if (mhStatus == 'capturing') 
+			{
+				var imagesCount = 0;
+				var images = base.dom.createElement('div',{className:'dashboardDetailImages',id:agentData.agentname});			
+				for (image in agentData.images) {
+					imagesCount++;	
+				}
+				if (imagesCount == 1) {
+					// NCast					
+					var imageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.main + "?" + timestamp;
+					images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':imageUrl,'alt':agentData.agentname}));	
+				}
+				else {
+					// MH-Agent
+					var dozentImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.dozent + "?" + timestamp;
+					var vgaImageUrl = site.instance.initConfig.imagesDir + '/' + agentData.images.vga + "?" + timestamp;
+					images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':dozentImageUrl,'alt':agentData.agentname}));
+					images.appendChild(base.dom.createElement('img',{className:'dashboardDetail image'},{'src':vgaImageUrl,'alt':agentData.agentname}));
+				}
+
+				item.appendChild(images);
+			
+		}
+		}
+		
+		else {
+			item.appendChild(base.dom.createElement('img',{className:'dashboardDetail offlineImage'},{'src':'resources/offline_agent.png','alt':'offline agent'}));
+		}
 
 		var infoContainer = base.dom.createElement('div',{className:'dashboardDetailInfoContainer'});
 		infoContainer.appendChild(base.dom.createElement('div',{className:'dashboardDetail info name',innerHTML:'<span class="dashboardDetail info label">' + site.messages.translate('name') + '</span>:' + agentData.agentname}));
