@@ -165,6 +165,27 @@ def generateNCastBoxScreenShoot(agent_url, user, passwd, snapshotFolder, agent_n
 
 	return 1
 
+
+def generateGalicasterScreenShoot(agent_url, agent_name):
+
+	img = snapshotFolder + agent_name
+	outimg = img + ".jpg"
+
+	authhandler = urllib2.HTTPDigestAuthHandler()
+	authhandler.add_password("Presentation Recorder", agent_url, "", "")
+	opener = urllib2.build_opener(authhandler)
+	
+	resp = opener.open(agent_url + "/screen")
+	
+	f = open(outimg, 'w')
+	f.write(resp.read())
+	f.close()
+	resp.close() 
+
+	return 1
+
+
+
 def getMatterHornInfo(MHAgentsInfo, agentName):
 	for a in MHAgentsInfo:
 		if (a["name"] == agentName):		
@@ -227,7 +248,7 @@ def generateAgentJSON(config, MHAgentsInfo, MHCalendarInfo, agentSection):
 	snapshotFolder = getConfigOption(config, "dashboard-config", "snapShotFolder")	
 
 	agent_state = MHinfo["state"]
-	MH_server = config.get("dashboard-config", "MHServer")
+        MH_server = config.get("dashboard-config", "MHServer")
 	MH_user = config.get("dashboard-config", "MHuser")
 	MH_passwd = config.get("dashboard-config", "MHPassword")
 	
@@ -287,6 +308,7 @@ def getAgentsNames(config, MHAgentsInfo):
 	sections = config.sections()
 	sections.remove("dashboard-config")
 	sections.remove("ncast-boxes")
+	sections.remove("galicaster")
 	for s in sections:
 		if (agents.has_key(s)==False):
 			agents[s]=s
@@ -308,6 +330,18 @@ def getNcastNames(config):
 		names[agent[0]] = agent[0]
 
 	return names
+
+def getGalicasterNames(config):
+	
+	agents = config.items("galicaster")
+	names = {}
+
+	for agent in agents:
+		names[agent[0]] = agent[0]
+
+	return names
+
+
 
 #TODO Calendar
 def generateAllAgentsJSON(config, datetime_str):
